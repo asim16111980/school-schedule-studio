@@ -713,6 +713,38 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .quick-option-icon.amber { color: #b8791e; background: #fff2d7; }
 .modal-footer { display: flex; align-items: center; gap: 5px; margin-top: 17px; color: #aaa6b1; font-size: 13px; }
 .help-icon { width: 15px; height: 15px; display: inline-grid; place-items: center; color: #8b7ddd; border-radius: 50%; background: #eeeaff; font: 700 10px 'DM Sans', sans-serif; }
+
+/* Mobile timetable styles */
+.mobile-timetable { padding: 8px 0; }
+.mobile-day-tabs { display: flex; gap: 4px; overflow-x: auto; padding: 4px 4px 8px; scrollbar-width: none; -ms-overflow-style: none; }
+.mobile-day-tabs::-webkit-scrollbar { display: none; }
+.mobile-day-tab { flex: 0 0 auto; min-width: 72px; padding: 8px 6px; border: 1px solid var(--color-border-default); border-radius: var(--radius-sm); background: var(--color-white); text-align: center; transition: var(--transition-fast); }
+.mobile-day-tab:hover { background: var(--color-surface-hover); }
+.mobile-day-tab.active { border-color: var(--color-purple); background: var(--color-purple-soft); color: var(--color-purple-dark); }
+.mobile-day-tab span { display: block; font-weight: 700; font-size: 13px; }
+.mobile-day-tab small { display: block; font-size: 10px; color: var(--color-text-tertiary); margin-top: 2px; }
+.mobile-day-panel { animation: fade-in .15s ease; }
+.mobile-period-list { display: grid; gap: 8px; }
+.mobile-period-item { border: 1px solid var(--color-border-default); border-radius: var(--radius); background: var(--color-white); overflow: hidden; }
+.mobile-period-item.conflict { border-color: var(--color-error); background: var(--color-error-softer); }
+.mobile-period-item.internal-gap { border-color: var(--color-warning); background: var(--color-warning-softer); }
+.mobile-period-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; background: var(--color-surface-subtle); border-bottom: 1px solid var(--color-border-default); }
+.mobile-period-header strong { font-size: 13px; color: var(--color-text-secondary); }
+.mobile-period-header span { font-size: 11px; color: var(--color-text-tertiary); font-family: 'DM Sans', sans-serif; }
+.mobile-period-header em { font-size: 10px; color: var(--color-warning-dark); background: var(--color-warning-soft); padding: 2px 6px; border-radius: 4px; }
+.mobile-empty-slot { display: flex; align-items: center; justify-content: center; min-height: 60px; padding: 12px; text-align: center; color: var(--color-text-quaternary); font-size: 14px; flex-direction: column; gap: 4px; transition: var(--transition-fast); cursor: pointer; }
+.mobile-empty-slot:hover { background: var(--color-surface-hover); }
+.mobile-empty-slot.drop-target { background: var(--color-success-softer); border: 2px dashed var(--color-success-light); color: var(--color-success-dark); }
+.mobile-empty-slot.drop-target .drop-hint { color: var(--color-success-dark); font-weight: 700; font-size: 12px; }
+.mobile-assignments-stack { display: grid; gap: 6px; padding: 8px; }
+.mobile-assignment-card { padding: 10px 12px; border: 1px solid; border-radius: var(--radius-sm); cursor: pointer; transition: var(--transition-fast); min-height: 44px; }
+.mobile-assignment-card:hover { transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+.mobile-assignment-card.picked-up { opacity: 0.5; outline: 2px dashed var(--color-purple); outline-offset: 2px; transform: scale(0.98); }
+.mobile-assignment-title-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.mobile-assignment-title-row strong { font-size: 13px; }
+.mobile-assignment-teacher { display: flex; align-items: center; gap: 4px; margin-top: 6px; color: var(--color-text-tertiary); font-size: 11px; }
+.mobile-conflict-bubble { display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; margin: 8px; color: var(--color-error-dark); background: var(--color-error-softer); border-radius: var(--radius-sm); font-size: 11px; font-weight: 700; }
+
 .mobile-overlay { display: none; }
 
 @media (max-width: 1120px) {

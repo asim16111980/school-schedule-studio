@@ -249,7 +249,11 @@ export const evaluateSchedule = (assignments: Assignment[], config: SchedulingCo
     internalClassGaps += gaps;
     const subjectCounts = new Map<string, number>();
     items.forEach((x) => subjectCounts.set(x.subject, (subjectCounts.get(x.subject) ?? 0) + 1));
-    for (const [subject, count] of subjectCounts) if (count > 1) sameSubjectSameDay += count - 1;
+    for (const [subject, count] of subjectCounts) {
+      const requirement = config.requirements?.find((r) => r.className === items[0].className && r.subject === subject);
+      const maxPerDay = Math.max(1, requirement?.maxPerDay ?? 1);
+      if (count > maxPerDay) sameSubjectSameDay += count - maxPerDay;
+    }
     const max = items.length ? dailyLimitFor(config, items[0].className) : 0;
     if (items.length > max) violations.push({ code: "CLASS_DAILY_LIMIT", severity: "hard", message: `الحمل اليومي للفصل ${items[0].className} مرتفع`, penalty: 10000 });
   }
@@ -268,7 +272,14 @@ export const evaluateSchedule = (assignments: Assignment[], config: SchedulingCo
     }
 
     const days = sortedByDay.map((x) => dayIndex(config, x.day)).filter((x) => x >= 0);
-    for (let i = 1; i < days.length; i += 1) if (days[i] - days[i - 1] <= minGap) subjectSpacingViolations += 1;
+    for (let i = 1; i < days.length; i += 1) {
+      if (days[i] - days[i - 1] <= minGap) {
+        subjectSpacingViolations += 1;
+        if (minGap > 0) {
+          violations.push({ code: "SUBJECT_SPACING", severity: "hard", message: `المادة ${subject} للفصل ${className} تحتاج مسافة أكبر بين الحصص`, penalty: 7000 });
+        }
+      }
+    }
   }
 
   const classDayLoads = new Map<string, number[]>();

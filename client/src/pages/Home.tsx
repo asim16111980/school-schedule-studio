@@ -1,4 +1,4 @@
-import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
+import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import {
   AlertTriangle,
@@ -321,12 +321,18 @@ export default function Home() {
   // Mobile timetable state
   const [isMobile, setIsMobile] = useState(false);
   const [mobileSelectedDayIndex, setMobileSelectedDayIndex] = useState(0);
+  // Mobile tap-to-move state (mirrors keyboard navigation pattern)
+  const [mobileMovingAssignment, setMobileMovingAssignment] = useState<Assignment | null>(null);
+  const [mobileMovingFrom, setMobileMovingFrom] = useState<{ day: string; slot: number } | null>(null);
   // Keyboard navigation state for timetable grid
   const [keyboardFocus, setKeyboardFocus] = useState<{ day: string; slot: number } | null>(null);
   const [isKeyboardMoving, setIsKeyboardMoving] = useState(false);
   const [keyboardMovingAssignment, setKeyboardMovingAssignment] = useState<Assignment | null>(null);
+  // Debounce timer for localStorage writes
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
+  // Write all state to localStorage (used by debounced effect and persistNow)
+  const writeToStorage = useCallback(() => {
     try {
       localStorage.setItem(STORAGE_KEYS.assignments, JSON.stringify(assignments));
       localStorage.setItem(STORAGE_KEYS.teachers, JSON.stringify(teachers));
@@ -352,6 +358,17 @@ export default function Home() {
     }
   }, [assignments, teachers, subjects, classes, stages, schoolName, schoolLogo, teacherGapLimits, teacherSlotLimits, stageDailySlots, stageStudyDays, teacherAvailability, subjectRequirements, solverWeights, curriculumMode, rooms, roomAvailability]);
 
+  // Debounced localStorage writes - only writes after 300ms of no changes
+  useEffect(() => {
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(() => {
+      writeToStorage();
+    }, 300);
+    return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    };
+  }, [writeToStorage]);
+
   // Mobile detection
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 760);
@@ -366,32 +383,8 @@ export default function Home() {
   };
 
   const persistNow = () => {
-    try {
-      const values: Record<string, unknown> = {
-        [STORAGE_KEYS.assignments]: assignments,
-        [STORAGE_KEYS.teachers]: teachers,
-        [STORAGE_KEYS.subjects]: subjects,
-        [STORAGE_KEYS.classes]: classes,
-        [STORAGE_KEYS.stages]: stages,
-        [STORAGE_KEYS.schoolName]: schoolName,
-        [STORAGE_KEYS.logo]: schoolLogo,
-        [STORAGE_KEYS.teacherGapLimits]: teacherGapLimits,
-        [STORAGE_KEYS.teacherSlotLimits]: teacherSlotLimits,
-        [STORAGE_KEYS.stageDailySlots]: stageDailySlots,
-        [STORAGE_KEYS.stageStudyDays]: stageStudyDays,
-        [STORAGE_KEYS.teacherAvailability]: teacherAvailability,
-        [STORAGE_KEYS.subjectRequirements]: subjectRequirements,
-        [STORAGE_KEYS.solverWeights]: solverWeights,
-        [STORAGE_KEYS.curriculumMode]: curriculumMode,
-        [STORAGE_KEYS.rooms]: rooms,
-        [STORAGE_KEYS.roomAvailability]: roomAvailability,
-      };
-      Object.entries(values).forEach(([key, value]) => localStorage.setItem(key, JSON.stringify(value)));
-      setLastSaved(new Date());
-      showToast("تم حفظ جميع التعديلات محلياً");
-    } catch {
-      showToast("تعذر الحفظ المحلي — مساحة التخزين ممتلئة");
-    }
+    writeToStorage();
+    showToast("تم حفظ جميع التعديلات محلياً");
   };
 
   const stats = useMemo(() => {
@@ -551,6 +544,45 @@ export default function Home() {
       if (slot > 1) {
         setKeyboardFocus({ day, slot: slot - 1 });
       }
+    }
+  };
+
+  // Mobile tap-to-move handlers
+  const handleMobilePickup = (item: Assignment, day: string, slot: number) => {
+    if (mobileMovingAssignment && mobileMovingAssignment.id === item.id) {
+      // Tap same assignment again -> cancel
+      setMobileMovingAssignment(null);
+      setMobileMovingFrom(null);
+      showToast("تم إلغاء النقل");
+      return;
+    }
+    // Pick up new assignment
+    setMobileMovingAssignment(item);
+    setMobileMovingFrom({ day, slot });
+    showToast(`تم التقاط حصة ${subjectLabel(item.subject)} — اضغط على خانة فارغة للإفلات، أو اضغط نفس الحصة للإلغاء`);
+  };
+
+  const handleMobileDrop = (day: string, slot: number) => {
+    if (!mobileMovingAssignment || !mobileMovingFrom) return;
+    const moving = mobileMovingAssignment;
+    const reason = conflictReason(moving, day, slot);
+    if (reason) {
+      setConflict({ message: reason, day, slot });
+      showToast("لم يتم النقل — تم اكتشاف تعارض");
+    } else {
+      setAssignments((current) => current.map((item) => (item.id === moving.id ? { ...item, day, slot } : item)));
+      showToast(`تم نقل حصة ${subjectLabel(moving.subject)} إلى ${day}، الحصة ${slot}`);
+    }
+    setMobileMovingAssignment(null);
+    setMobileMovingFrom(null);
+  };
+
+  const handleMobileEmptySlotTap = (day: string, slot: number) => {
+    if (mobileMovingAssignment) {
+      handleMobileDrop(day, slot);
+    } else {
+      // Tap empty slot without holding anything -> quick add (future: open quick-add modal)
+      showToast("استخدم السحب والإفلات من النسخة المكتبية، أو اضغط على حصة لنقلها");
     }
   };
 
@@ -1338,19 +1370,33 @@ export default function Home() {
                     {slot === 3 && <em>فسحة</em>}
                   </div>
                   {items.length === 0 ? (
-                    <div className="mobile-empty-slot">
+                    <div
+                      className={`mobile-empty-slot ${mobileMovingAssignment ? "drop-target" : ""}`}
+                      onClick={() => handleMobileEmptySlotTap(day, slot)}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={mobileMovingAssignment ? `إفلات حصة ${subjectLabel(mobileMovingAssignment.subject)} هنا` : "خانة فارغة"}
+                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleMobileEmptySlotTap(day, slot); } }}
+                    >
                       <span>{internalGap ? "فراغ داخلي" : "—"}</span>
                       {internalGap && <small>اضغط لإضافة حصة</small>}
+                      {mobileMovingAssignment && <small className="drop-hint">إفلات هنا</small>}
                     </div>
                   ) : (
                     <div className="mobile-assignments-stack">
                       {items.map((item) => {
                         const style = subjectStyles[item.subject] ?? subjectStyles.اجتماعيات;
+                        const isPickedUp = mobileMovingAssignment?.id === item.id;
                         return (
                           <div
                             key={item.id}
-                            className="mobile-assignment-card"
+                            className={`mobile-assignment-card ${isPickedUp ? "picked-up" : ""}`}
                             style={{ backgroundColor: style.soft, borderColor: style.border }}
+                            onClick={() => handleMobilePickup(item, day, slot)}
+                            role="button"
+                            tabIndex={0}
+                            aria-label={isPickedUp ? `حصة ${subjectLabel(item.subject)} مختارة — اضغط مرة أخرى للإلغاء` : `التقاط حصة ${subjectLabel(item.subject)}`}
+                            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleMobilePickup(item, day, slot); } }}
                           >
                             <div className="mobile-assignment-title-row">
                               <strong style={{ color: style.strong }}>{subjectLabel(item.subject)}</strong>
